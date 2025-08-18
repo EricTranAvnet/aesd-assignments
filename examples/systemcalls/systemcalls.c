@@ -1,4 +1,9 @@
 #include "systemcalls.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -16,8 +21,27 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
+ 	int ret = 0;
+	// If there is no command, return false
+	if (cmd == NULL)
+	{
+		return false;
+	}
 
-    return true;
+	ret = system(cmd);
+	// If child process could not be created, return false
+	if (ret == -1)
+	{
+		return false;
+	}
+	// if process has been created, exited but status of execution command is not good, false
+	else if (WIFEXITED(ret) && WEXITSTATUS(ret) != 0)
+	{
+		return false;
+	}
+
+	// then we should be good to return true
+    	return true;
 }
 
 /**
@@ -59,8 +83,56 @@ bool do_exec(int count, ...)
  *
 */
 
+	pid_t child_pid;
+	int ret ;
+	int status;
+	int status_child_pid;
+
+	child_pid = fork();
+// If child coudn't be created
+	if (child_pid == -1)
+	{
+		return false;
+	}
+// if we are in the child process
+	if (child_pid == 0)
+	{
+		if (command[0][0] != '/' )
+		{
+			exit(1);
+		}
+
+		ret = execv(command[0],command);
+
+		if (ret == -1)
+		{
+			exit(1);
+		}
+	}
+
+	status_child_pid = wait(&status);
+
+// Waiting failed
+	if (status_child_pid == -1 )
+	{
+		return false;
+	}
+
+// Waiting ok but executatiion failed
+	if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
+	{
+		return false;
+	}
+
+// Child terminated abnormally
+	if (!WIFEXITED(status))
+	{
+		return false;
+	}
+
     va_end(args);
 
+// We should be good at that point
     return true;
 }
 
@@ -93,6 +165,58 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *
 */
 
+
+        int status;
+        int status_child_pid;
+
+	int kidpid;
+	int fd = open("redirected.txt", O_WRONLY | O_TRUNC| O_CREAT, 0644);
+
+	if (fd < 0)
+	{
+		return false;
+	}
+
+	switch (kidpid = fork())
+	{
+  		case -1 :
+			return false;
+
+	// child
+		case 0:
+    			if (dup2(fd, 1) < 0)
+			{
+    				close(fd);
+				exit(1);
+			}
+			if (command[0][0] != '/')
+			{
+				exit(1);
+			}
+    			execv(command[0], command);
+  			exit(1);
+
+		default:
+
+        		status_child_pid = waitpid(kidpid,&status,0);
+			// Waiting failed
+			        if (status_child_pid == -1 )
+			        {
+			                return false;
+			        }
+
+			// Waiting ok but executatiion failed
+			        if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
+			        {
+			                return false;
+			        }
+
+			// Check if child terminated abnormally
+				if (!WIFEXITED(status))
+				{
+					return false;
+				}
+	}
     va_end(args);
 
     return true;

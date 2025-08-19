@@ -162,62 +162,48 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
  *   redirect standard out to a file specified by outputfile.
  *   The rest of the behaviour is same as do_exec()
- *
 */
 
 
-        int status;
-        int status_child_pid;
-
-	int kidpid;
-	int fd = open("redirected.txt", O_WRONLY | O_TRUNC| O_CREAT, 0644);
-
-	if (fd < 0)
-	{
-		return false;
-	}
-
-	switch (kidpid = fork())
-	{
-  		case -1 :
-			return false;
-
-	// child
-		case 0:
-    			if (dup2(fd, 1) < 0)
-			{
-    				close(fd);
-				exit(1);
-			}
-			if (command[0][0] != '/')
-			{
-				exit(1);
-			}
-    			execv(command[0], command);
-  			exit(1);
-
-		default:
-
-        		status_child_pid = waitpid(kidpid,&status,0);
-			// Waiting failed
-			        if (status_child_pid == -1 )
-			        {
-			                return false;
-			        }
-
-			// Waiting ok but executatiion failed
-			        if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
-			        {
-			                return false;
-			        }
-
-			// Check if child terminated abnormally
-				if (!WIFEXITED(status))
-				{
-					return false;
-				}
-	}
     va_end(args);
 
-    return true;
+    pid_t pid = fork();
+
+    // Fork failed
+    if (pid < 0) {
+        return false;
+    }
+
+    if (pid == 0) {
+        // Child process
+
+        // Open the output file (create if missing, truncate if exists)
+        int fd = open(outputfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        // Failed opening
+	if (fd < 0) {
+            exit(1);
+        }
+
+        // Redirect stdout to the file
+        if (dup2(fd, STDOUT_FILENO) < 0) {
+            perror("dup2 failed");
+            close(fd);
+            exit(1);
+        }
+        close(fd); // fd no longer needed, stdout now points to the file
+
+        // Replace child process with the command
+        execv(command[0], command);
+
+        // If fail execv
+        exit(1);
+    } else {
+        // Parent process: wait for child
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {
+            return false;
+        }
+        return WIFEXITED(status) && (WEXITSTATUS(status) == 0);
+
+    }
 }

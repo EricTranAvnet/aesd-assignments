@@ -83,8 +83,9 @@ mkdir -p ${OUTDIR}/rootfs/bin \
 if [ ! -d "${OUTDIR}/busybox" ]
 then
     echo "Cloning busybox with source : ${BUSYBOX}"
+    cd ${OUTDIR}
     git clone ${BUSYBOX} 
-    cd ${OUTDIR}/busybox
+    cd busybox
     git checkout ${BUSYBOX_VERSION}
     # TODO:  Configure busybox
     make menuconfig

@@ -88,11 +88,12 @@ then
     cd busybox
     git checkout ${BUSYBOX_VERSION}
     # TODO:  Configure busybox
-    make menuconfig
 else
     cd ${OUTDIR}/busybox
-    make menuconfig
 fi
+
+make distclean
+make defconfig
 
 # TODO: Make and install busybox
 echo "Making and Installing Busybox"
